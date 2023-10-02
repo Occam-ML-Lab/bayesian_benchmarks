@@ -12,31 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import os
-import pandas
 import logging
-from datetime import datetime
-from scipy.io import loadmat
+import os
 import pickle
 import shutil
-
+from datetime import datetime
 from urllib.request import urlopen
+
+import numpy as np
+import pandas
+from scipy.io import loadmat
+
 logging.getLogger().setLevel(logging.INFO)
 import zipfile
 
-from bayesian_benchmarks.paths import DATA_PATH, BASE_SEED
+from bayesian_benchmarks.paths import BASE_SEED, DATA_PATH
 
 _ALL_REGRESSION_DATATSETS = {}
 _ALL_CLASSIFICATION_DATATSETS = {}
 
+
 def add_regression(C):
-    _ALL_REGRESSION_DATATSETS.update({C.name:C})
+    _ALL_REGRESSION_DATATSETS.update({C.name: C})
     return C
 
+
 def add_classficiation(C):
-    _ALL_CLASSIFICATION_DATATSETS.update({C.name:C})
+    _ALL_CLASSIFICATION_DATATSETS.update({C.name: C})
     return C
+
 
 def normalize(X):
     X_mean = np.average(X, 0)[None, :]
@@ -45,7 +49,12 @@ def normalize(X):
 
 
 class Dataset(object):
-    def __init__(self, split=0, prop=0.9):
+
+    def __init__(self, split=0, prop=0.9, data_path=None):
+        if data_path:
+            self.data_path = data_path
+        else:
+            self.data_path = DATA_PATH
         if self.needs_download:
             self.download()
 
@@ -67,18 +76,20 @@ class Dataset(object):
 
     @property
     def datadir(self):
-        dir = os.path.join(DATA_PATH, self.name)
+        dir = os.path.join(self.data_path, self.name)
         if not os.path.isdir(dir):
             os.mkdir(dir)
         return dir
 
     @property
     def datapath(self):
-        filename = self.url.split('/')[-1]  # this is for the simple case with no zipped files
+        filename = self.url.split('/')[
+            -1]  # this is for the simple case with no zipped files
         return os.path.join(self.datadir, filename)
 
     @property
     def needs_download(self):
+        print(f"datapath {self.datapath}")
         return not os.path.isfile(self.datapath)
 
     def download(self):
@@ -140,6 +151,7 @@ class Concrete(Dataset):
 class Energy(Dataset):
     N, D, name = 768, 8, 'energy'
     url = uci_base_url + '00242/ENB2012_data.xlsx'
+
     def read_data(self):
         # NB this is the first output (aka Energy1, as opposed to Energy2)
         data = pandas.read_excel(self.datapath).values[:, :-1]
@@ -150,6 +162,7 @@ class Energy(Dataset):
 class Kin8mn(Dataset):
     N, D, name = 8192, 8, 'kin8nm'
     url = 'http://mldata.org/repository/data/download/csv/uci-20070111-kin8nm'
+
     def read_data(self):
         data = pandas.read_csv(self.datapath, header=None).values
         return data[:, :-1], data[:, -1].reshape(-1, 1)
@@ -226,21 +239,26 @@ class Yacht(Dataset):
 
 
 class Classification(Dataset):
+
     def preprocess_data(self, X, Y):
         X, self.X_mean, self.X_std = normalize(X)
         return X, Y
 
     @property
     def needs_download(self):
-        if os.path.isfile(os.path.join(DATA_PATH, 'classification_data', 'iris', 'iris_R.dat')):
+        if os.path.isfile(
+                os.path.join(self.data_path, 'classification_data', 'iris',
+                             'iris_R.dat')):
             return False
         else:
             return True
 
     def download(self):
-        logging.info('donwloading classification data. WARNING: downloading 195MB file'.format(self.name))
+        logging.info(
+            'donwloading classification data. WARNING: downloading 195MB file'.
+            format(self.name))
 
-        filename = os.path.join(DATA_PATH, 'classification_data.tar.gz')
+        filename = os.path.join(self.data_path, 'classification_data.tar.gz')
 
         url = 'http://persoal.citius.usc.es/manuel.fernandez.delgado/papers/jmlr/data.tar.gz'
         with urlopen(url) as response, open(filename, 'wb') as out_file:
@@ -249,22 +267,31 @@ class Classification(Dataset):
 
         import tarfile
         tar = tarfile.open(filename)
-        tar.extractall(path=os.path.join(DATA_PATH, 'classification_data'))
+        tar.extractall(
+            path=os.path.join(self.data_path, 'classification_data'))
         tar.close()
 
         logging.info('finished donwloading {} data'.format(self.name))
 
-
     def read_data(self):
-        datapath = os.path.join(DATA_PATH, 'classification_data', self.name, self.name + '_R.dat')
+        datapath = os.path.join(self.data_path, 'classification_data',
+                                self.name, self.name + '_R.dat')
         if os.path.isfile(datapath):
-            data = np.array(pandas.read_csv(datapath, header=0, delimiter='\t').values).astype(float)
+            data = np.array(
+                pandas.read_csv(datapath, header=0,
+                                delimiter='\t').values).astype(float)
         else:
-            data_path1 = os.path.join(DATA_PATH, 'classification_data', self.name, self.name + '_train_R.dat')
-            data1 = np.array(pandas.read_csv(data_path1, header=0, delimiter='\t').values).astype(float)
+            data_path1 = os.path.join(self.data_path, 'classification_data',
+                                      self.name, self.name + '_train_R.dat')
+            data1 = np.array(
+                pandas.read_csv(data_path1, header=0,
+                                delimiter='\t').values).astype(float)
 
-            data_path2 = os.path.join(DATA_PATH, 'classification_data', self.name, self.name + '_test_R.dat')
-            data2 = np.array(pandas.read_csv(data_path2, header=0, delimiter='\t').values).astype(float)
+            data_path2 = os.path.join(self.data_path, 'classification_data',
+                                      self.name, self.name + '_test_R.dat')
+            data2 = np.array(
+                pandas.read_csv(data_path2, header=0,
+                                delimiter='\t').values).astype(float)
 
             data = np.concatenate([data1, data2], 0)
 
@@ -276,7 +303,8 @@ rescale = lambda x, a, b: b[0] + (b[1] - b[0]) * x / (a[1] - a[0])
 
 def convert_to_day_minute(d):
     day_of_week = rescale(float(d.weekday()), [0, 6], [0, 2 * np.pi])
-    time_of_day = rescale(d.time().hour * 60 + d.time().minute, [0, 24 * 60], [0, 2 * np.pi])
+    time_of_day = rescale(d.time().hour * 60 + d.time().minute, [0, 24 * 60],
+                          [0, 2 * np.pi])
     return day_of_week, time_of_day
 
 
@@ -288,9 +316,10 @@ def process_time(pickup_datetime, dropoff_datetime):
     pickup_day_of_week, pickup_time_of_day = convert_to_day_minute(d_pickup)
     dropoff_day_of_week, dropoff_time_of_day = convert_to_day_minute(d_dropoff)
 
-    return [pickup_day_of_week, pickup_time_of_day,
-            dropoff_day_of_week, dropoff_time_of_day,
-            duration]
+    return [
+        pickup_day_of_week, pickup_time_of_day, dropoff_day_of_week,
+        dropoff_time_of_day, duration
+    ]
 
 
 class NYTaxiBase(Dataset):
@@ -302,7 +331,7 @@ class NYTaxiBase(Dataset):
     name = 'nytaxi'
 
     def _read_data(self):
-        data = pandas.read_csv(self.datapath)#, nrows=10000)
+        data = pandas.read_csv(self.datapath)  #, nrows=10000)
         data = data.values
 
         # print(data.dtypes.index)
@@ -332,27 +361,32 @@ class NYTaxiBase(Dataset):
         ind[data[:, 8] < self.y_bounds[0]] = False
         ind[data[:, 8] > self.y_bounds[1]] = False
 
-        print('discarding {} out of bounds {} {}'.format(np.sum(np.invert(ind).astype(int)), self.x_bounds,
-                                                         self.y_bounds))
+        print('discarding {} out of bounds {} {}'.format(
+            np.sum(np.invert(ind).astype(int)), self.x_bounds, self.y_bounds))
 
-        early_stop = ((data[:, 5] - data[:, 7]) ** 2 + (data[:, 6] - data[:, 8]) ** 2 < self.too_close_radius)
+        early_stop = ((data[:, 5] - data[:, 7])**2 +
+                      (data[:, 6] - data[:, 8])**2 < self.too_close_radius)
         ind[early_stop] = False
-        print('discarding {} trip less than {} gp dist'.format(np.sum(early_stop.astype(int)),
-                                                               self.too_close_radius ** 0.5))
+        print('discarding {} trip less than {} gp dist'.format(
+            np.sum(early_stop.astype(int)), self.too_close_radius**0.5))
 
-        times = np.array([process_time(d_pickup, d_dropoff) for (d_pickup, d_dropoff) in data[:, 2:4]])
+        times = np.array([
+            process_time(d_pickup, d_dropoff)
+            for (d_pickup, d_dropoff) in data[:, 2:4]
+        ])
         pickup_time = times[:, :2]
         dropoff_time = times[:, 2:4]
         duration = times[:, 4]
 
         short_journeys = (duration < self.min_duration)
         ind[short_journeys] = False
-        print('discarding {} less than {}s journeys'.format(np.sum(short_journeys.astype(int)), self.min_duration))
+        print('discarding {} less than {}s journeys'.format(
+            np.sum(short_journeys.astype(int)), self.min_duration))
 
         long_journeys = (duration > self.max_duration)
         ind[long_journeys] = False
-        print(
-            'discarding {} more than {}h journeys'.format(np.sum(long_journeys.astype(int)), self.max_duration / 3600.))
+        print('discarding {} more than {}h journeys'.format(
+            np.sum(long_journeys.astype(int)), self.max_duration / 3600.))
 
         pickup_loc = pickup_loc[ind, :]
         dropoff_loc = dropoff_loc[ind, :]
@@ -360,7 +394,8 @@ class NYTaxiBase(Dataset):
         dropoff_time = dropoff_time[ind, :]
         duration = duration[ind]
 
-        print('{} total rejected journeys'.format(np.sum(np.invert(ind).astype(int))))
+        print('{} total rejected journeys'.format(
+            np.sum(np.invert(ind).astype(int))))
         return pickup_loc, dropoff_loc, pickup_time, dropoff_time, duration
 
     @property
@@ -375,22 +410,26 @@ class NYTaxiBase(Dataset):
 @add_regression
 class NYTaxiTimePrediction(NYTaxiBase):
     N, D = 1420068, 8
+
     # N, D = 9741, 6
 
     def read_data(self):
-        path = os.path.join(DATA_PATH, 'taxitime_preprocessed.npz')
+        path = os.path.join(self.data_path, 'taxitime_preprocessed.npz')
         if os.path.isfile(path):
             with open(path, 'rb') as file:
                 f = np.load(file)
                 X, Y = f['X'], f['Y']
 
         else:
-            pickup_loc, dropoff_loc, pickup_datetime, dropoff_datetime, duration = self._read_data()
+            pickup_loc, dropoff_loc, pickup_datetime, dropoff_datetime, duration = self._read_data(
+            )
 
-            pickup_sc = np.array([np.sin(pickup_datetime[:, 0]),
-                                  np.cos(pickup_datetime[:, 0]),
-                                  np.sin(pickup_datetime[:, 1]),
-                                  np.cos(pickup_datetime[:, 1])]).T
+            pickup_sc = np.array([
+                np.sin(pickup_datetime[:, 0]),
+                np.cos(pickup_datetime[:, 0]),
+                np.sin(pickup_datetime[:, 1]),
+                np.cos(pickup_datetime[:, 1])
+            ]).T
 
             X = np.concatenate([pickup_loc, dropoff_loc, pickup_sc], 1)
             Y = duration.reshape(-1, 1)
@@ -403,8 +442,9 @@ class NYTaxiTimePrediction(NYTaxiBase):
 
 class NYTaxiLocationPrediction(NYTaxiBase):
     N, D = 1420068, 6
+
     def read_data(self):
-        path = os.path.join(DATA_PATH, 'taxiloc_preprocessed.npz')
+        path = os.path.join(self.data_path, 'taxiloc_preprocessed.npz')
         if os.path.isfile(path):
             with open(path, 'rb') as file:
                 f = np.load(file)
@@ -412,12 +452,15 @@ class NYTaxiLocationPrediction(NYTaxiBase):
 
         else:
 
-            pickup_loc, dropoff_loc, pickup_datetime, dropoff_datetime, duration = self._read_data()
+            pickup_loc, dropoff_loc, pickup_datetime, dropoff_datetime, duration = self._read_data(
+            )
 
-            pickup_sc = np.array([np.sin(pickup_datetime[:, 0]),
-                                  np.cos(pickup_datetime[:, 0]),
-                                  np.sin(pickup_datetime[:, 1]),
-                                  np.cos(pickup_datetime[:, 1])]).T
+            pickup_sc = np.array([
+                np.sin(pickup_datetime[:, 0]),
+                np.cos(pickup_datetime[:, 0]),
+                np.sin(pickup_datetime[:, 1]),
+                np.cos(pickup_datetime[:, 1])
+            ]).T
             #         X = np.concatenate([pickup_loc, pickup_sc, duration.reshape(-1, 1)], 1)
             X = np.concatenate([pickup_loc, pickup_sc], 1)
             Y = dropoff_loc
@@ -431,13 +474,15 @@ class NYTaxiLocationPrediction(NYTaxiBase):
     def preprocess_data(self, X, Y):
         return X, Y
 
+
 # Andrew Wilson's datasets
 #https://drive.google.com/open?id=0BxWe_IuTnMFcYXhxdUNwRHBKTlU
 class WilsonDataset(Dataset):
+
     @property
     def datapath(self):
         n = self.name[len('wilson_'):]
-        return '{}/uci/{}/{}.mat'.format(DATA_PATH, n, n)
+        return '{}/uci/{}/{}.mat'.format(self.data_path, n, n)
 
     def read_data(self):
         data = loadmat(self.datapath)['data']
@@ -446,7 +491,7 @@ class WilsonDataset(Dataset):
 
 @add_regression
 class Wilson_3droad(WilsonDataset):
-    name, N, D =  'wilson_3droad', 434874, 3
+    name, N, D = 'wilson_3droad', 434874, 3
 
 
 @add_regression
@@ -486,17 +531,17 @@ class Wilson_machine(WilsonDataset):
 
 @add_regression
 class Wilson_skillcraft(WilsonDataset):
-    name, N, D =  'wilson_skillcraft', 3338, 19
+    name, N, D = 'wilson_skillcraft', 3338, 19
 
 
 @add_regression
 class Wilson_wine(WilsonDataset):
-    name, N, D =  'wilson_wine', 1599, 11
+    name, N, D = 'wilson_wine', 1599, 11
 
 
 @add_regression
 class Wilson_autompg(WilsonDataset):
-    name, N, D =  'wilson_autompg', 392, 7
+    name, N, D = 'wilson_autompg', 392, 7
 
 
 @add_regression
@@ -541,12 +586,12 @@ class Wilson_housing(WilsonDataset):
 
 @add_regression
 class Wilson_pendulum(WilsonDataset):
-    name, N, D =  'wilson_pendulum', 630, 9
+    name, N, D = 'wilson_pendulum', 630, 9
 
 
 @add_regression
 class Wilson_sml(WilsonDataset):
-    name, N, D =  'wilson_sml', 4137, 26
+    name, N, D = 'wilson_sml', 4137, 26
 
 
 @add_regression
@@ -748,29 +793,46 @@ classification_datasets = [
     ['abalone', 4177, 9, 3],
 ]
 
-
 for name, N, D, K in classification_datasets:
+
     @add_classficiation
     class C(Classification):
         name, N, D, K = name, N, D, K
 
 
 # URLs of Mujoco data sets
-urls_mujoco_dataset = {'Ant-v2': 'https://drive.google.com/uc?export=download&id=1NdoF79nOg53_fjTlth4iN1RHpQRYgYw0',
-                       'HalfCheetah-v2': 'https://drive.google.com/uc?export=download&id=1lcxCBRKFG-9JzcLroLSd6e-GgagcEnY6',
-                       'Hopper-v2': 'https://drive.google.com/uc?export=download&id=10BZ_4n7a14K1wV_2Z6Ne-BT6SLJnm4U9',
-                       'Humanoid-v2': 'https://drive.google.com/uc?export=download&id=1K_juBeAuCeMGNAqnWDFUoAYvQDYXyaTB',
-                       'Humanoid-v2-1': 'https://drive.google.com/uc?export=download&id=1Sjai5ksAgud8ipVCADtLuIlcOMkB01WP',
-                       'Humanoid-v2-2': 'https://drive.google.com/uc?export=download&id=1EfvIZ7oPy0hNgXOVxXIv8gu9ZkK4wHlw',
-                       'Humanoid-v2-3': 'https://drive.google.com/uc?export=download&id=1YZMqBBNt-7fky3SDeJ-NvdzcCgzD7XGk',
-                       'Humanoid-v2-4': 'https://drive.google.com/uc?export=download&id=1-FVKSOJQIA7PiKpVoXXfHl7Q19U9e0_o',
-                       'Humanoid-v2-5': 'https://drive.google.com/uc?export=download&id=1wWtZaYI_Pm_t_PCSIQ5yZIU4MGIvgoyy',
-                       'InvertedDoublePendulum-v2': 'https://drive.google.com/uc?export=download&id=1qqasWqUtBKq49ylAtiCj6hnL365APwj2',
-                       'InvertedPendulum-v2': 'https://drive.google.com/uc?export=download&id=1cTsIsxUcIQpZ-INHnDBaQtHOuyWMLPJp',
-                       'Pendulum-v0': 'https://drive.google.com/uc?export=download&id=11-T5IBWniyw3EF0z4TgvUvRgCQ8_QpTm',
-                       'Reacher-v2': 'https://drive.google.com/uc?export=download&id=1uVj4MOb4xYk5aXmdsf6cIDVCHVVsafYQ',
-                       'Swimmer-v2': 'https://drive.google.com/uc?export=download&id=1narm3mDgVSFzE26kHzy2Mkif6XR_DSuB',
-                       'Walker2d-v2': 'https://drive.google.com/uc?export=download&id=1i3sG35FSPHdZ0S-VqyPF0a9gCoh9NdWz'}
+urls_mujoco_dataset = {
+    'Ant-v2':
+    'https://drive.google.com/uc?export=download&id=1NdoF79nOg53_fjTlth4iN1RHpQRYgYw0',
+    'HalfCheetah-v2':
+    'https://drive.google.com/uc?export=download&id=1lcxCBRKFG-9JzcLroLSd6e-GgagcEnY6',
+    'Hopper-v2':
+    'https://drive.google.com/uc?export=download&id=10BZ_4n7a14K1wV_2Z6Ne-BT6SLJnm4U9',
+    'Humanoid-v2':
+    'https://drive.google.com/uc?export=download&id=1K_juBeAuCeMGNAqnWDFUoAYvQDYXyaTB',
+    'Humanoid-v2-1':
+    'https://drive.google.com/uc?export=download&id=1Sjai5ksAgud8ipVCADtLuIlcOMkB01WP',
+    'Humanoid-v2-2':
+    'https://drive.google.com/uc?export=download&id=1EfvIZ7oPy0hNgXOVxXIv8gu9ZkK4wHlw',
+    'Humanoid-v2-3':
+    'https://drive.google.com/uc?export=download&id=1YZMqBBNt-7fky3SDeJ-NvdzcCgzD7XGk',
+    'Humanoid-v2-4':
+    'https://drive.google.com/uc?export=download&id=1-FVKSOJQIA7PiKpVoXXfHl7Q19U9e0_o',
+    'Humanoid-v2-5':
+    'https://drive.google.com/uc?export=download&id=1wWtZaYI_Pm_t_PCSIQ5yZIU4MGIvgoyy',
+    'InvertedDoublePendulum-v2':
+    'https://drive.google.com/uc?export=download&id=1qqasWqUtBKq49ylAtiCj6hnL365APwj2',
+    'InvertedPendulum-v2':
+    'https://drive.google.com/uc?export=download&id=1cTsIsxUcIQpZ-INHnDBaQtHOuyWMLPJp',
+    'Pendulum-v0':
+    'https://drive.google.com/uc?export=download&id=11-T5IBWniyw3EF0z4TgvUvRgCQ8_QpTm',
+    'Reacher-v2':
+    'https://drive.google.com/uc?export=download&id=1uVj4MOb4xYk5aXmdsf6cIDVCHVVsafYQ',
+    'Swimmer-v2':
+    'https://drive.google.com/uc?export=download&id=1narm3mDgVSFzE26kHzy2Mkif6XR_DSuB',
+    'Walker2d-v2':
+    'https://drive.google.com/uc?export=download&id=1i3sG35FSPHdZ0S-VqyPF0a9gCoh9NdWz'
+}
 
 policy_checkpoints = [str(i * 100000) for i in range(11)]
 evaluation_suffix = 'sac_policy.eval'
@@ -793,7 +855,7 @@ class MujocoSoftActorCriticDataset(Dataset):
 
     @property
     def datadir(self):
-        dir = os.path.join(DATA_PATH, self.name)
+        dir = os.path.join(self.data_path, self.name)
         return dir
 
     @property
@@ -804,7 +866,8 @@ class MujocoSoftActorCriticDataset(Dataset):
 
     def download(self):
         filename = self.datadir + '.zip'
-        with urlopen(self.url_mujoco_dataset) as response, open(filename, 'wb') as out_file:
+        with urlopen(self.url_mujoco_dataset) as response, open(
+                filename, 'wb') as out_file:
             data = response.read()
             out_file.write(data)
         zip_ref = zipfile.ZipFile(filename, 'r')
@@ -823,18 +886,25 @@ class MujocoSoftActorCriticDataset(Dataset):
         X_raw, Y_raw = None, None
         outer_evaluation_dir = os.path.join(self.datadir, 'env=' + self.name)
         if not os.path.isdir(outer_evaluation_dir):
-            raise Exception('There is no evaluation direcory for environment ' + self.name)
+            raise Exception(
+                'There is no evaluation direcory for environment ' + self.name)
         for policy_checkpoint in policy_checkpoints:
 
-            evaluation_dir = os.path.join(outer_evaluation_dir, 'environment_step=' + policy_checkpoint)
+            evaluation_dir = os.path.join(
+                outer_evaluation_dir, 'environment_step=' + policy_checkpoint)
             if not os.path.isdir(evaluation_dir):
-                raise Exception('There is no evaluation direcory for policy checkpoint ' + policy_checkpoint)
+                raise Exception(
+                    'There is no evaluation direcory for policy checkpoint ' +
+                    policy_checkpoint)
 
             evaluation_file = os.path.join(evaluation_dir, evaluation_suffix)
             if not os.path.isfile(evaluation_file):
-                raise Exception('There is no evaluation file for policy checkpoint ' + policy_checkpoint)
+                raise Exception(
+                    'There is no evaluation file for policy checkpoint ' +
+                    policy_checkpoint)
 
-            X_raw_checkpoint, Y_raw_checkpoint = self._read_checkpoint_data(evaluation_file)
+            X_raw_checkpoint, Y_raw_checkpoint = self._read_checkpoint_data(
+                evaluation_file)
             if X_raw is None and Y_raw is None:
                 X_raw = X_raw_checkpoint
                 Y_raw = Y_raw_checkpoint
@@ -843,7 +913,8 @@ class MujocoSoftActorCriticDataset(Dataset):
                 Y_raw = np.concatenate((Y_raw, Y_raw_checkpoint))
 
         assert len(X_raw) == len(Y_raw)
-        assert X_raw.shape[1] == self.observation_dimension + self.action_dimension
+        assert X_raw.shape[
+            1] == self.observation_dimension + self.action_dimension
         assert Y_raw.shape[1] == self.observation_dimension + 1
         self.N = len(X_raw)
         return X_raw, Y_raw
@@ -861,23 +932,30 @@ class MujocoSoftActorCriticDataset(Dataset):
             observation_trajec = evaluation_result_trajec['observations']
             action_trajec = evaluation_result_trajec['actions']
             reward_trajec = evaluation_result_trajec['rewards']
-            assert len(observation_trajec) == len(action_trajec) + 1 == len(reward_trajec) + 1
+            assert len(observation_trajec
+                       ) == len(action_trajec) + 1 == len(reward_trajec) + 1
             assert observation_trajec.shape[1] == self.observation_dimension
             assert action_trajec.shape[1] == self.action_dimension
             assert len(reward_trajec.shape) == 1
 
-            X_raw_trajec = np.concatenate((observation_trajec[:-1, :], action_trajec), axis=1)
-            delta_observation_trajec = observation_trajec[1:, :] - observation_trajec[:-1, :]
-            Y_raw_trajec = np.concatenate((delta_observation_trajec, reward_trajec[:, None]), axis=1)
+            X_raw_trajec = np.concatenate(
+                (observation_trajec[:-1, :], action_trajec), axis=1)
+            delta_observation_trajec = observation_trajec[
+                1:, :] - observation_trajec[:-1, :]
+            Y_raw_trajec = np.concatenate(
+                (delta_observation_trajec, reward_trajec[:, None]), axis=1)
             if X_raw_checkpoint is None and Y_raw_checkpoint is None:
                 X_raw_checkpoint = X_raw_trajec
                 Y_raw_checkpoint = Y_raw_trajec
             else:
-                X_raw_checkpoint = np.concatenate((X_raw_checkpoint, X_raw_trajec))
-                Y_raw_checkpoint = np.concatenate((Y_raw_checkpoint, Y_raw_trajec))
+                X_raw_checkpoint = np.concatenate(
+                    (X_raw_checkpoint, X_raw_trajec))
+                Y_raw_checkpoint = np.concatenate(
+                    (Y_raw_checkpoint, Y_raw_trajec))
 
         assert len(X_raw_checkpoint) == len(Y_raw_checkpoint)
-        assert X_raw_checkpoint.shape[1] == self.observation_dimension + self.action_dimension
+        assert X_raw_checkpoint.shape[
+            1] == self.observation_dimension + self.action_dimension
         assert Y_raw_checkpoint.shape[1] == self.observation_dimension + 1
         return X_raw_checkpoint, Y_raw_checkpoint
 
@@ -909,18 +987,22 @@ class Hopper(MujocoSoftActorCriticDataset):
 @add_regression
 class Humanoid(MujocoSoftActorCriticDataset):
     name = 'Humanoid-v2'
-    url_mujoco_sub_datasets = {'1': urls_mujoco_dataset[name + '-1'],
-                               '2': urls_mujoco_dataset[name + '-2'],
-                               '3': urls_mujoco_dataset[name + '-3'],
-                               '4': urls_mujoco_dataset[name + '-4'],
-                               '5': urls_mujoco_dataset[name + '-5']}
+    url_mujoco_sub_datasets = {
+        '1': urls_mujoco_dataset[name + '-1'],
+        '2': urls_mujoco_dataset[name + '-2'],
+        '3': urls_mujoco_dataset[name + '-3'],
+        '4': urls_mujoco_dataset[name + '-4'],
+        '5': urls_mujoco_dataset[name + '-5']
+    }
     observation_dimension = 376
     action_dimension = 17
 
     def download(self):
         for i in range(1, 6):
             filename = self.datadir + '-' + str(i) + '.zip'
-            with urlopen(self.url_mujoco_sub_datasets[str(i)]) as response, open(filename, 'wb') as out_file:
+            with urlopen(
+                    self.url_mujoco_sub_datasets[str(i)]) as response, open(
+                        filename, 'wb') as out_file:
                 data = response.read()
                 out_file.write(data)
             zip_ref = zipfile.ZipFile(filename, 'r')
@@ -932,14 +1014,16 @@ class Humanoid(MujocoSoftActorCriticDataset):
         os.mkdir(outer_evaluation_dir)
         readme_counter = 0
         for i in range(1, 6):
-            dirname = os.path.join(self.datadir + '-' + str(i), 'env=' + self.name + '-' + str(i))
+            dirname = os.path.join(self.datadir + '-' + str(i),
+                                   'env=' + self.name + '-' + str(i))
             elements = os.listdir(dirname)
             for element in elements:
                 if element == 'readme.txt' and readme_counter == 1:
                     continue
                 if element == 'readme.txt':
                     readme_counter += 1
-                shutil.move(os.path.join(dirname, element), outer_evaluation_dir)
+                shutil.move(os.path.join(dirname, element),
+                            outer_evaluation_dir)
             shutil.rmtree(self.datadir + '-' + str(i))
 
 
@@ -999,8 +1083,10 @@ regression_datasets.sort()
 classification_datasets = list(_ALL_CLASSIFICATION_DATATSETS.keys())
 classification_datasets.sort()
 
+
 def get_regression_data(name, *args, **kwargs):
     return _ALL_REGRESSION_DATATSETS[name](*args, **kwargs)
+
 
 def get_classification_data(name, *args, **kwargs):
     return _ALL_CLASSIFICATION_DATATSETS[name](*args, **kwargs)
