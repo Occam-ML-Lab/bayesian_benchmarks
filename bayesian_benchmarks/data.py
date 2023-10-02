@@ -89,7 +89,6 @@ class Dataset(object):
 
     @property
     def needs_download(self):
-        print(f"datapath {self.datapath}")
         return not os.path.isfile(self.datapath)
 
     def download(self):
