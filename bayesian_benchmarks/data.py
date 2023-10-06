@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import os
-import pandas
 import logging
-from datetime import datetime
-from scipy.io import loadmat
+import os
 import pickle
 import shutil
-
+from datetime import datetime
 from urllib.request import urlopen
+
+import numpy as np
+import pandas
+from scipy.io import loadmat
 
 logging.getLogger().setLevel(logging.INFO)
 import zipfile
@@ -154,12 +154,12 @@ class Energy(Dataset):
 
 
 @add_regression
-class Kin8mn(Dataset):
+class Kin8nm(Dataset):
     N, D, name = 8192, 8, "kin8nm"
     url = "http://mldata.org/repository/data/download/csv/uci-20070111-kin8nm"
 
     def read_data(self):
-        data = pandas.read_csv(self.datapath, header=None).values
+        data = pandas.read_csv(self.datapath).values
         return data[:, :-1], data[:, -1].reshape(-1, 1)
 
 
